@@ -1,6 +1,7 @@
 const express = require('express');
 const qrcode = require('qrcode');
 const { Client, MessageMedia } = require('whatsapp-web.js');
+const { LocalAuth } = require('whatsapp-web.js');
 const bodyParser = require('body-parser');
 const multer = require('multer');
 const path = require('path');
@@ -24,11 +25,16 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-const client = new Client({ puppeteer: { args: ['--no-sandbox'] } });
+/* const client = new Client({ puppeteer: { args: ['--no-sandbox'] } }); */
+
+const client = new Client({
+  authStrategy: new LocalAuth(),
+  puppeteer: { args: ['--no-sandbox'] }
+});
 
 let qrResponse;
 
-app.get('/qr', async (req, res) => {
+app.get('/api/qr', async (req, res) => {
   async function getQr() {
     return new Promise((resolve) => {
       qrResponse = { send: resolve };
@@ -38,7 +44,7 @@ app.get('/qr', async (req, res) => {
 
   const qr = await getQr();
 
-  const qrImage = await qrcode.toDataURL(qr, { scale: 4 });//
+  const qrImage = await qrcode.toDataURL(qr, { scale: 4 });
   const html = `
     <html>
       <body>
@@ -87,13 +93,6 @@ app.post('/api/send-message', async (req, res) => {
   await sendMessageToNumber(number, message, res);
   res.send({ response: 'Mensaje enviado con éxito' });
 });
-// Ruta para enviar imágenes
-app.post('/api/send-image', upload.single('image'), async (req, res) => {
-  const { number, message } = req.body;
-  const imagePath = req.file.path;
-  await sendImageToNumber(number, imagePath, message, res);
-  res.send({ response: 'Imagen enviada con éxito' });
-});
 
 const sendMessageToNumbers = async (numbers, message) => {
   // Verificar que los números se hayan pasado correctamente
@@ -101,7 +100,6 @@ const sendMessageToNumbers = async (numbers, message) => {
     console.log('Error: números no válidos');
     return;
   }
-
   // Enviar mensaje a cada número
   for (const number of numbers) {
     const chat = await client.getChatById(`${number}@c.us`);
@@ -117,6 +115,14 @@ app.post('/api/send-multimessage', async (req, res) => {
   const { numbers, message } = req.body;
   await sendMessageToNumbers(numbers, message, res);
   res.send({ response: 'Mensaje enviado con éxito a múltiples números' });
+});
+
+// Ruta para enviar imágenes
+app.post('/api/send-image', upload.single('image'), async (req, res) => {
+  const { number, message } = req.body;
+  const imagePath = req.file.path;
+  await sendImageToNumber(number, imagePath, message, res);
+  res.send({ response: 'Imagen enviada con éxito' });
 });
 
 const port = process.env.PORT || 3000;
